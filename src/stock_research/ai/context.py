@@ -53,12 +53,12 @@ def build_ai_context(
             "description": _truncate(parsed.company.description or "", 400),
         },
         "scores": _compact_mapping(asdict(analysis.scores)),
-        "loaded_workbook_comparison": _comparison_payload(comparison_workbooks, parsed),
+        "market_data": _market_data_payload(market_data),
         "summary_metrics": _compact_mapping(analysis.summary_metrics),
+        "recent_quarters": quarters,
         "trend_signals": [_compact_mapping(asdict(trend)) for trend in analysis.trends[:8]],
         "risk_indicators": [_truncate(item, 180) for item in analysis.risk_indicators[:8]],
-        "recent_quarters": quarters,
-        "market_data": _market_data_payload(market_data),
+        "loaded_workbook_comparison": _comparison_payload(comparison_workbooks, parsed),
     }
     return json.dumps(context, default=_json_default, separators=(", ", ": "))
 

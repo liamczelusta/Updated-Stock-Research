@@ -46,7 +46,7 @@ class ClaudeMessagesClient:
         if not self.settings.api_key:
             raise AIProviderError("Claude API key is missing.")
 
-        compact_payload = _cap_payload(user_payload, max_chars=7000)
+        compact_payload = _cap_payload(user_payload, max_chars=12000)
         try:
             import anthropic
 
