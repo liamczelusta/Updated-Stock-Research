@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-research-app"
+version = "0.1.0"
+description = "A Streamlit desktop-style stock research application."
+requires-python = ">=3.10"
+dependencies = [
+    "streamlit>=1.36",
+    "pandas>=2.2",
+    "openpyxl>=3.1",
+    "plotly>=5.22",
+    "openai>=1.0",
+    "anthropic>=0.34",
+    "yfinance>=0.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2", "pyinstaller>=6.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
