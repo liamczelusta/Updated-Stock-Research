@@ -284,21 +284,8 @@ def _render_workbook_comparison(
         )
 
     st.markdown('<div class="section-title">Workbook comparison</div>', unsafe_allow_html=True)
-    comparison_df = pd.DataFrame(rows)
-    sort_columns = ["Workbook score", "Growth", "Profitability", "Execution", "Revenue YoY", "EPS YoY", "Workbook"]
-    sort_col, direction_col = st.columns([0.68, 0.32])
-    with sort_col:
-        sort_by = st.selectbox("Sort comparison by", sort_columns, index=0)
-    with direction_col:
-        sort_descending = st.toggle("Highest first", value=True)
-    comparison_df = comparison_df.sort_values(
-        by=sort_by,
-        ascending=not sort_descending,
-        na_position="last",
-        kind="mergesort",
-    )
     st.dataframe(
-        comparison_df,
+        pd.DataFrame(rows),
         width="stretch",
         hide_index=True,
         column_config={
@@ -1029,11 +1016,11 @@ def _render_plain_ai_text(text: str) -> None:
 
 
 def _with_length_instruction(question: str, max_tokens: int) -> str:
-    word_budget = max(80, int(max_tokens * 0.85))
+    word_budget = max(40, int(max_tokens * 0.55))
     return (
         f"{question}\n\n"
-        f"Length guidance: aim for about {word_budget} words or fewer, but do not cut off useful analysis mid-thought. "
-        "Prioritize a direct conclusion, the most important evidence, and any necessary caveats."
+        f"Length limit: keep the answer under about {word_budget} words. "
+        "If the limit is tight, prioritize the direct conclusion and the most important evidence."
     )
 
 
