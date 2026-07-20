@@ -117,9 +117,9 @@ def _score(quarters: tuple[QuarterRecord, ...], analyses: tuple[QuarterAnalysis,
     acceleration = _acceleration([item.revenue_yoy_growth for item in usable_analyses])
     growth = _clamp_score(50 + 80 * revenue_growth + 40 * rolling_growth + 25 * acceleration)
 
-    gross_margin = _latest_non_null(item.gross_margin for item in usable_analyses)
-    margin_change = _latest_vs_prior_average([item.gross_margin for item in usable_analyses])
-    profitability = 50.0 if gross_margin is None else _clamp_score(45 + 70 * gross_margin + 45 * margin_change)
+    profitability_base = _profitability_base(usable_quarters, usable_analyses)
+    margin_change = _latest_vs_prior_average([_best_margin_signal(quarter, analysis) for quarter, analysis in usable_pairs])
+    profitability = _clamp_score(45 + 70 * profitability_base + 45 * margin_change)
 
     eps_growth = _average(item.eps_yoy_growth for item in recent if item.eps_yoy_growth is not None)
     financial_quality = _clamp_score(0.35 * growth + 0.35 * profitability + 30 + 30 * eps_growth)
@@ -356,6 +356,93 @@ def _find_metric(quarter: QuarterRecord, names: tuple[str, ...]) -> float | None
                 return value / 100
             return value
     return None
+
+
+def _profitability_base(quarters: list[QuarterRecord], analyses: list[QuarterAnalysis]) -> float:
+    """Return the latest available profitability signal, falling back gracefully."""
+
+    latest_signal = _latest_non_null(_best_margin_signal(quarter, analysis) for quarter, analysis in zip(quarters, analyses))
+    if latest_signal is not None:
+        return latest_signal
+
+    earnings_margin = _latest_non_null(
+        _earnings_margin_signal(quarter)
+        for quarter in quarters
+    )
+    if earnings_margin is not None:
+        return earnings_margin
+
+    return 0.10
+
+
+def _best_margin_signal(quarter: QuarterRecord, analysis: QuarterAnalysis) -> float | None:
+    candidates = [
+        analysis.gross_margin,
+        analysis.operating_margin,
+        analysis.net_margin,
+        _find_metric(quarter, ("gross margin", "gm")),
+        _find_metric(quarter, ("operating margin", "op margin", "oper margin", "ebit margin")),
+        _find_metric(quarter, ("net margin",)),
+        _segment_margin(quarter),
+        _earnings_margin_signal(quarter),
+    ]
+    return _latest_non_null(candidates)
+
+
+def _segment_margin(quarter: QuarterRecord) -> float | None:
+    margin_metrics = [
+        _to_percent_decimal(metric.value)
+        for metric in quarter.additional_metrics
+        if "margin" in metric.name.lower()
+    ]
+    margin_metrics = [value for value in margin_metrics if value is not None]
+    if margin_metrics:
+        return max(margin_metrics)
+
+    income_values = [
+        _to_float(metric.value)
+        for metric in quarter.additional_metrics
+        if any(term in metric.name.lower() for term in ("operating income", "op income", "ebit"))
+    ]
+    revenue_values = [
+        _to_float(metric.value)
+        for metric in quarter.additional_metrics
+        if any(term in metric.name.lower() for term in ("revenue", "rev.", "net sales", "sales"))
+    ]
+    income_values = [value for value in income_values if value is not None and value > 0]
+    revenue_values = [value for value in revenue_values if value is not None and value > 0]
+    if income_values and revenue_values:
+        return _reasonable_margin(_ratio_or_none(max(income_values), max(revenue_values)))
+    return None
+
+
+def _to_percent_decimal(value: object) -> float | None:
+    numeric = _to_float(value)
+    if numeric is None:
+        return None
+    if numeric > 1:
+        numeric = numeric / 100
+    if -1 <= numeric <= 1:
+        return numeric
+    return None
+
+
+def _ratio_or_none(numerator: float | None, denominator: float | None) -> float | None:
+    if numerator is None or denominator is None or denominator == 0:
+        return None
+    return numerator / denominator
+
+
+def _earnings_margin_signal(quarter: QuarterRecord) -> float | None:
+    return _reasonable_margin(_ratio_or_none(quarter.total_earnings_millions, quarter.revenue_actual_millions))
+
+
+def _reasonable_margin(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if not -0.5 <= value <= 1.5:
+        return None
+    return _clamp(value, -0.2, 0.45)
 
 
 def _usable_analyses(

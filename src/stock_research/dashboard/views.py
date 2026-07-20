@@ -284,8 +284,21 @@ def _render_workbook_comparison(
         )
 
     st.markdown('<div class="section-title">Workbook comparison</div>', unsafe_allow_html=True)
+    comparison_df = pd.DataFrame(rows)
+    sort_columns = ["Workbook score", "Growth", "Profitability", "Execution", "Revenue YoY", "EPS YoY", "Workbook"]
+    sort_col, direction_col = st.columns([0.68, 0.32])
+    with sort_col:
+        sort_by = st.selectbox("Sort comparison by", sort_columns, index=0)
+    with direction_col:
+        sort_descending = st.toggle("Highest first", value=True)
+    comparison_df = comparison_df.sort_values(
+        by=sort_by,
+        ascending=not sort_descending,
+        na_position="last",
+        kind="mergesort",
+    )
     st.dataframe(
-        pd.DataFrame(rows),
+        comparison_df,
         width="stretch",
         hide_index=True,
         column_config={
@@ -752,9 +765,11 @@ def _render_ai_chat(
     if chat_key not in st.session_state:
         st.session_state[chat_key] = []
 
-    for message in st.session_state[chat_key]:
+    for index, message in enumerate(st.session_state[chat_key]):
         with st.chat_message(message["role"]):
             _render_plain_ai_text(message["content"])
+            if message["role"] == "assistant":
+                _copy_button("Copy response", message["content"], f"copy_chat_response_{chat_key}_{index}")
 
     question = st.chat_input("Ask about the stock research data")
     if not question:
@@ -787,6 +802,7 @@ def _render_ai_chat(
             except Exception as exc:
                 response = f"AI chat failed: {exc}"
             _render_plain_ai_text(response)
+            _copy_button("Copy response", response, f"copy_chat_response_{chat_key}_{len(st.session_state[chat_key])}")
     st.session_state[chat_key].append({"role": "assistant", "content": response})
 
 
@@ -965,6 +981,7 @@ def _api_key_for(name: str) -> str:
 
 def _copy_button(label: str, text: str, key: str) -> None:
     escaped_label = escape(label)
+    safe_key = re.sub(r"[^A-Za-z0-9_-]", "_", key)
     escaped_text = (
         text.replace("\\", "\\\\")
         .replace("`", "\\`")
@@ -973,9 +990,9 @@ def _copy_button(label: str, text: str, key: str) -> None:
     )
     components.html(
         f"""
-        <button id="{key}" class="copy-button">{escaped_label}</button>
+        <button id="{safe_key}" class="copy-button">{escaped_label}</button>
         <script>
-        const button = document.getElementById("{key}");
+        const button = document.getElementById("{safe_key}");
         button.onclick = async () => {{
             await navigator.clipboard.writeText(`{escaped_text}`);
             button.innerText = "Copied";
@@ -1012,11 +1029,11 @@ def _render_plain_ai_text(text: str) -> None:
 
 
 def _with_length_instruction(question: str, max_tokens: int) -> str:
-    word_budget = max(40, int(max_tokens * 0.55))
+    word_budget = max(80, int(max_tokens * 0.85))
     return (
         f"{question}\n\n"
-        f"Length limit: keep the answer under about {word_budget} words. "
-        "If the limit is tight, prioritize the direct conclusion and the most important evidence."
+        f"Length guidance: aim for about {word_budget} words or fewer, but do not cut off useful analysis mid-thought. "
+        "Prioritize a direct conclusion, the most important evidence, and any necessary caveats."
     )
 
 
