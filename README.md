@@ -62,6 +62,12 @@ The easiest free hosted option is Streamlit Community Cloud because this project
 
 For private financial workbooks, the desktop/local version remains the safest option because files stay on the user's machine.
 
+## Windows Desktop Build
+
+The Windows package can be built through GitHub Actions. See `docs/windows_desktop_build.md`.
+
+For large local research folders, use the sidebar's `Scan local folder` option. It scans ticker subfolders, finds the likely Excel workbook in each folder, and ignores PDFs, Word documents, cache folders, and temporary Excel files.
+
 ## AI Configuration
 
 The app uses Claude for the AI assistant. Store the key locally in `.streamlit/secrets.toml` or enter an override in Advanced. The sidebar lets you choose Haiku, Sonnet, Opus, or Fable depending on whether you want lower cost or stronger analysis.

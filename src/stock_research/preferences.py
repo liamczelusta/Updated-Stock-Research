@@ -24,6 +24,7 @@ class AppPreferences:
 
     recent_files: tuple[str, ...] = ()
     last_folder: str | None = None
+    last_scan_folder: str | None = None
 
 
 def load_preferences() -> AppPreferences:
@@ -42,7 +43,14 @@ def load_preferences() -> AppPreferences:
     last_folder = payload.get("last_folder")
     if not isinstance(last_folder, str) or not Path(last_folder).exists():
         last_folder = str(Path(recent_files[0]).parent) if recent_files else None
-    return AppPreferences(recent_files=recent_files[:MAX_RECENT_FILES], last_folder=last_folder)
+    last_scan_folder = payload.get("last_scan_folder")
+    if not isinstance(last_scan_folder, str) or not Path(last_scan_folder).exists():
+        last_scan_folder = None
+    return AppPreferences(
+        recent_files=recent_files[:MAX_RECENT_FILES],
+        last_folder=last_folder,
+        last_scan_folder=last_scan_folder,
+    )
 
 
 def remember_workbook(path: str | Path) -> AppPreferences:
@@ -55,6 +63,21 @@ def remember_workbook(path: str | Path) -> AppPreferences:
     updated = AppPreferences(
         recent_files=tuple(recent_files),
         last_folder=str(workbook_path.parent),
+        last_scan_folder=preferences.last_scan_folder,
+    )
+    _save_preferences(updated)
+    return updated
+
+
+def remember_scan_folder(path: str | Path) -> AppPreferences:
+    """Persist the root folder used for recursive workbook scans."""
+
+    scan_path = Path(path).expanduser()
+    preferences = load_preferences()
+    updated = AppPreferences(
+        recent_files=preferences.recent_files,
+        last_folder=preferences.last_folder,
+        last_scan_folder=str(scan_path) if scan_path.exists() else preferences.last_scan_folder,
     )
     _save_preferences(updated)
     return updated
@@ -65,5 +88,6 @@ def _save_preferences(preferences: AppPreferences) -> None:
     payload = {
         "recent_files": list(preferences.recent_files),
         "last_folder": preferences.last_folder,
+        "last_scan_folder": preferences.last_scan_folder,
     }
     PREFERENCES_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
