@@ -92,14 +92,28 @@ def test_find_workbook_for_ticker_searches_only_requested_ticker_folder(tmp_path
 
 
 def test_find_workbook_for_ticker_ignores_mock_prefixed_matrix_files(tmp_path: Path) -> None:
-    aapl = tmp_path / "AAPL"
-    aapl.mkdir()
-    mock_file = aapl / "0 - Mock ZP Quarterly Matrix (AAPL).xlsx"
-    preferred = aapl / "ZP Quarterly Matrix (AAPL).xlsx"
+    fang = tmp_path / "FANG"
+    fang.mkdir()
+    mock_file = fang / "0 - Mock ZP Quarterly Matric (FANG) - rev+CE+actual-.xlsx"
+    preferred = fang / "ZP Quarterly Matric (FANG) - rev+CE+actual.xlsx"
     mock_file.write_text("ignore", encoding="utf-8")
     preferred.write_text("use", encoding="utf-8")
 
-    candidate = find_workbook_for_ticker(tmp_path, "AAPL")
+    candidate = find_workbook_for_ticker(tmp_path, "FANG")
+
+    assert candidate is not None
+    assert candidate.path == preferred
+
+
+def test_find_workbook_for_ticker_prefers_any_file_that_starts_with_zp(tmp_path: Path) -> None:
+    fang = tmp_path / "FANG"
+    fang.mkdir()
+    mock_file = fang / "0 - Mock ZP Quarterly Matric (FANG) - rev+CE+actual-.xlsx"
+    preferred = fang / "ZP Revenue Workbook (FANG).xlsx"
+    mock_file.write_text("ignore", encoding="utf-8")
+    preferred.write_text("use", encoding="utf-8")
+
+    candidate = find_workbook_for_ticker(tmp_path, "FANG")
 
     assert candidate is not None
     assert candidate.path == preferred

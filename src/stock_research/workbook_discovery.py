@@ -19,6 +19,7 @@ IGNORED_DIR_NAMES = {
 }
 IGNORED_TOP_LEVEL_PREFIXES = ("1 -", "ZZZ")
 PREFERRED_WORKBOOK_PREFIXES = (
+    "zp",
     "zp quarterly matrix",
     "zp quarterly matric",
 )
@@ -53,7 +54,7 @@ def discover_workbooks(root: str | Path, max_files: int = 500) -> tuple[Workbook
     candidates = []
     for folder, paths in sorted(by_folder.items(), key=lambda item: str(item[0]).lower()):
         ticker = _ticker_hint(folder, root_path)
-        best = sorted(paths, key=lambda path: _candidate_score(path, folder, ticker), reverse=True)[0]
+        best = _choose_best_workbook(paths, folder, ticker)
         candidates.append(
             WorkbookCandidate(
                 path=best,
@@ -80,7 +81,7 @@ def find_workbook_for_ticker(root: str | Path, ticker: str) -> WorkbookCandidate
     if not paths:
         return None
 
-    best = sorted(paths, key=lambda path: _candidate_score(path, folder, clean_ticker), reverse=True)[0]
+    best = _choose_best_workbook(paths, folder, clean_ticker)
     return WorkbookCandidate(
         path=best,
         ticker_hint=clean_ticker,
@@ -107,6 +108,16 @@ def _iter_excel_files(root: Path):
         if _is_ignored_matrix_candidate(path.name):
             continue
         yield path
+
+
+def _choose_best_workbook(paths: list[Path], folder: Path, ticker_hint: str = "") -> Path:
+    clean_preferred = [path for path in paths if _is_clean_preferred_workbook(path.name)]
+    candidates = clean_preferred or paths
+    return sorted(candidates, key=lambda path: _candidate_score(path, folder, ticker_hint), reverse=True)[0]
+
+
+def _is_clean_preferred_workbook(name: str) -> bool:
+    return name.strip().lower().startswith(PREFERRED_WORKBOOK_PREFIXES)
 
 
 def _candidate_score(path: Path, folder: Path, ticker_hint: str = "") -> tuple[int, float, str]:
