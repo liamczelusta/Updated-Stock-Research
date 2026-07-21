@@ -66,11 +66,11 @@ For private financial workbooks, the desktop/local version remains the safest op
 
 The Windows package can be built through GitHub Actions. See `docs/windows_desktop_build.md`.
 
-For large local research folders, use the sidebar's `Scan local folder` option. It scans ticker subfolders, finds the likely Excel workbook in each folder, and ignores PDFs, Word documents, cache folders, and temporary Excel files.
+For large local research folders, use the sidebar's `Scan local folder` option. It remembers the last folder used, scans ticker subfolders, finds the likely Excel workbook in each folder, and ignores PDFs, Word documents, cache folders, and temporary Excel files. Use `Tickers to analyze` for focused comparisons such as `AAPL, MSFT, GS`.
 
 ## AI Configuration
 
-The app uses Claude for the AI assistant. Store the key locally in `.streamlit/secrets.toml` or enter an override in Advanced. The sidebar lets you choose Haiku, Sonnet, Opus, or Fable depending on whether you want lower cost or stronger analysis.
+The app uses Claude for the AI assistant. In the desktop app, paste the key once in `Advanced` and choose `Save Claude key on this computer`. For Streamlit Cloud, store the key in app secrets. The sidebar lets you choose Haiku, Sonnet, Opus, or Fable depending on whether you want lower cost or stronger analysis.
 
 ```toml
 ANTHROPIC_API_KEY = "..."

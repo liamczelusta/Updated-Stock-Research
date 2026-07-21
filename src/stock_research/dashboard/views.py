@@ -19,6 +19,7 @@ from stock_research.analysis_engine import apply_market_overlay
 from stock_research.ai.context import build_ai_context, build_system_prompt, build_user_payload
 from stock_research.ai.providers import AIProviderError, AISettings, create_ai_client
 from stock_research.dataclasses import AnalysisResult, ParsedWorkbook, QuarterAnalysis, QuarterRecord, is_estimate_quarter_label, is_historical_quarter
+from stock_research.local_secrets import delete_local_secret, load_local_secret, save_local_secret
 from stock_research.market_data import MarketDataError, MarketDataSnapshot, YahooFinanceProvider
 from stock_research.preferences import AppPreferences
 from stock_research.reporting import (
@@ -97,7 +98,8 @@ def render_dashboard(
 
     with st.sidebar:
         provider = AI_PROVIDER
-        api_key = _api_key_for(AI_KEY_ENV_NAME)
+        saved_api_key = load_local_secret(AI_KEY_ENV_NAME)
+        api_key = _api_key_for(AI_KEY_ENV_NAME) or saved_api_key
         st.subheader("Current workbook")
         st.caption(parsed.company.workbook_path.name)
         if comparison_workbooks and len(comparison_workbooks) > 1:
@@ -116,7 +118,7 @@ def render_dashboard(
         if api_key:
             st.caption("Claude connected")
         else:
-            st.caption("Add a Claude key in Advanced to use chat.")
+            st.caption("Add a Claude key in Advanced once to use chat.")
 
         st.divider()
         st.subheader("Market data")
@@ -129,8 +131,16 @@ def render_dashboard(
             default_quarters = min(16, max_quarters)
             quarter_count = st.slider("Quarters shown", min_value=4, max_value=max_quarters, value=default_quarters)
             show_forecast_extension = st.toggle("Show forecast extension", value=True)
-            api_key_input = st.text_input("API key override", type="password", value="")
-            api_key = api_key_input or _api_key_for(AI_KEY_ENV_NAME)
+            api_key_input = st.text_input("Claude API key", type="password", value="")
+            if st.button("Save Claude key on this computer", disabled=not bool(api_key_input.strip())):
+                save_local_secret(AI_KEY_ENV_NAME, api_key_input)
+                st.success("Saved locally for this computer.")
+                st.rerun()
+            if saved_api_key and not _api_key_for(AI_KEY_ENV_NAME):
+                if st.button("Forget saved Claude key"):
+                    delete_local_secret(AI_KEY_ENV_NAME)
+                    st.rerun()
+            api_key = api_key_input or _api_key_for(AI_KEY_ENV_NAME) or load_local_secret(AI_KEY_ENV_NAME)
 
         if "quarter_count" not in locals():
             app_theme = "Dark"

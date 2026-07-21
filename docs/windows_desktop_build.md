@@ -8,8 +8,10 @@ This project can be built into a Windows desktop-style package through GitHub Ac
 2. Unzip it.
 3. Double-click `Open Stock Research Dashboard.bat`.
 4. The app opens in the browser at a local address.
-5. Use `Scan local folder` in the sidebar to point at the large stock-folder library.
-6. Double-click `Stop Stock Research Dashboard.bat` when finished.
+5. Use `Scan local folder` in the sidebar to point at the large stock-folder library. The app remembers that folder for next time.
+6. Enter one or more tickers in `Tickers to analyze`, such as `AAPL, MSFT, GS`, to load only the stocks you care about.
+7. Paste the Claude key once in `Advanced` and click `Save Claude key on this computer`.
+8. Double-click `Stop Stock Research Dashboard.bat` when finished.
 
 ## Folder Scanner
 
@@ -28,6 +30,8 @@ Stock Library/
 ```
 
 It recursively finds `.xlsx` and `.xlsm` files, ignores temporary Excel files and common build/cache folders, and chooses the best-looking workbook in each ticker folder. Non-Excel files are ignored.
+
+For large libraries, use `Tickers to analyze` so the app does not parse hundreds of workbooks just to compare a few companies.
 
 ## Building With GitHub CLI
 

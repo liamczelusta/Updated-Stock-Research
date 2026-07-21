@@ -46,6 +46,27 @@ def _discover_workbooks(folder: str) -> tuple[WorkbookCandidate, ...]:
     return discover_workbooks(folder)
 
 
+def _parse_ticker_filter(value: str) -> set[str]:
+    parts = value.replace(",", " ").replace(";", " ").split()
+    return {part.strip().upper() for part in parts if part.strip()}
+
+
+def _candidate_matches_ticker(candidate: WorkbookCandidate, tickers: set[str]) -> bool:
+    if not tickers:
+        return True
+    ticker_hint = candidate.ticker_hint.upper()
+    name = candidate.path.stem.upper()
+    folder = candidate.path.parent.name.upper()
+    return any(
+        ticker == ticker_hint
+        or ticker == folder
+        or name.startswith(ticker)
+        or f"({ticker})" in name
+        or f" {ticker} " in f" {name} "
+        for ticker in tickers
+    )
+
+
 def main() -> None:
     """Render the Streamlit stock research dashboard."""
     st.set_page_config(page_title=APP_TITLE, layout="wide")
@@ -68,6 +89,12 @@ def main() -> None:
         with st.expander("Scan local folder"):
             scan_default = preferences.last_scan_folder or preferences.last_folder or ""
             scan_folder = st.text_input("Root folder", value=scan_default)
+            ticker_filter = st.text_input(
+                "Tickers to analyze",
+                value="",
+                placeholder="AAPL, MSFT, GS",
+                help="Optional. Enter one or more tickers to avoid loading every workbook in a large folder.",
+            )
             st.caption("Desktop use: scan ticker subfolders and ignore non-Excel files.")
 
     selected_path: Path | None = None
@@ -83,14 +110,22 @@ def main() -> None:
                 selected_name = st.selectbox("Active workbook", [name for name, _path in uploaded_paths])
             selected_path = dict(uploaded_paths)[selected_name]
     elif scan_folder.strip() and Path(scan_folder.strip()).expanduser().is_dir():
-        candidates = _discover_workbooks(str(Path(scan_folder.strip()).expanduser()))
+        tickers = _parse_ticker_filter(ticker_filter)
+        all_candidates = _discover_workbooks(str(Path(scan_folder.strip()).expanduser()))
+        candidates = tuple(candidate for candidate in all_candidates if _candidate_matches_ticker(candidate, tickers))
         folder_paths = [(candidate.display_name, candidate.path) for candidate in candidates]
         if folder_paths:
             with st.sidebar:
-                st.caption(f"Found {len(folder_paths)} workbook(s).")
+                if tickers:
+                    st.caption(f"Found {len(folder_paths)} matching workbook(s).")
+                else:
+                    st.caption(f"Found {len(folder_paths)} workbook(s).")
                 selected_name = st.selectbox("Active workbook", [name for name, _path in folder_paths])
             selected_path = dict(folder_paths)[selected_name]
             remember_scan_folder(scan_folder.strip())
+        elif tickers:
+            with st.sidebar:
+                st.warning("No matching ticker workbooks were found.")
     elif recent_choice:
         selected_path = Path(recent_choice).expanduser()
         remember_selected_path = True
