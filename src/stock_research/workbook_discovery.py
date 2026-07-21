@@ -22,6 +22,7 @@ PREFERRED_WORKBOOK_PREFIXES = (
     "zp quarterly matrix",
     "zp quarterly matric",
 )
+IGNORED_WORKBOOK_PREFIX_WORDS = {"mock", "test", "draft", "old", "archive"}
 
 
 @dataclass(frozen=True)
@@ -103,7 +104,7 @@ def _iter_excel_files(root: Path):
             continue
         if path.suffix.lower() not in EXCEL_SUFFIXES:
             continue
-        if _is_numbered_old_matrix(path.name):
+        if _is_ignored_matrix_candidate(path.name):
             continue
         yield path
 
@@ -183,11 +184,16 @@ def _clean_ticker(value: str) -> str:
     return "".join(char for char in cleaned if char.isalnum() or char in {".", "_"})
 
 
-def _is_numbered_old_matrix(name: str) -> bool:
+def _is_ignored_matrix_candidate(name: str) -> bool:
     lowered = name.strip().lower()
     if "zp quarterly matrix" not in lowered and "zp quarterly matric" not in lowered:
         return False
     prefix = lowered.split("zp quarterly", 1)[0].strip()
     if not prefix:
         return False
-    return prefix.rstrip("- ").isdigit()
+    if prefix.rstrip("- ").isdigit():
+        return True
+    parts = [part.strip() for part in prefix.replace("_", "-").split("-") if part.strip()]
+    if parts and parts[0].isdigit():
+        return True
+    return any(word in parts for word in IGNORED_WORKBOOK_PREFIX_WORDS)

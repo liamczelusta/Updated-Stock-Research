@@ -89,3 +89,17 @@ def test_find_workbook_for_ticker_searches_only_requested_ticker_folder(tmp_path
     assert candidate is not None
     assert candidate.ticker_hint == "AAPL"
     assert candidate.path == preferred
+
+
+def test_find_workbook_for_ticker_ignores_mock_prefixed_matrix_files(tmp_path: Path) -> None:
+    aapl = tmp_path / "AAPL"
+    aapl.mkdir()
+    mock_file = aapl / "0 - Mock ZP Quarterly Matrix (AAPL).xlsx"
+    preferred = aapl / "ZP Quarterly Matrix (AAPL).xlsx"
+    mock_file.write_text("ignore", encoding="utf-8")
+    preferred.write_text("use", encoding="utf-8")
+
+    candidate = find_workbook_for_ticker(tmp_path, "AAPL")
+
+    assert candidate is not None
+    assert candidate.path == preferred
