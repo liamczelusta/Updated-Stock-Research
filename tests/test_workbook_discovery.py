@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from stock_research.workbook_discovery import discover_workbooks
+from stock_research.workbook_discovery import discover_workbooks, find_workbook_for_ticker
 
 
 def test_discover_workbooks_chooses_one_excel_file_per_ticker_folder(tmp_path: Path) -> None:
@@ -65,3 +65,27 @@ def test_discover_workbooks_ignores_archive_folders_and_numbered_matrix_files(tm
     assert len(candidates) == 1
     assert candidates[0].ticker_hint == "AAPL"
     assert candidates[0].path == preferred
+
+
+def test_find_workbook_for_ticker_searches_only_requested_ticker_folder(tmp_path: Path) -> None:
+    archive = tmp_path / "1 - AAPL Archive"
+    archive.mkdir()
+    (archive / "ZP Quarterly Matrix (AAPL).xlsx").write_text("ignore", encoding="utf-8")
+
+    aapl = tmp_path / "AAPL Apple Inc"
+    aapl.mkdir()
+    (aapl / "1 - ZP Quarterly matrix (AAPL).xlsx").write_text("old", encoding="utf-8")
+    preferred = aapl / "ZP Quarterly Matrix (AAPL)- Rev, CE, Actual.xlsx"
+    preferred.write_text("use", encoding="utf-8")
+    (aapl / "other spreadsheet.xlsx").write_text("ignore", encoding="utf-8")
+
+    wmt = tmp_path / "WMT"
+    wmt.mkdir()
+    wmt_file = wmt / "ZP Quarterly Matrix (WMT).xlsx"
+    wmt_file.write_text("wmt", encoding="utf-8")
+
+    candidate = find_workbook_for_ticker(tmp_path, "AAPL")
+
+    assert candidate is not None
+    assert candidate.ticker_hint == "AAPL"
+    assert candidate.path == preferred

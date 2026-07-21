@@ -18,7 +18,7 @@ from stock_research.config import APP_TITLE
 from stock_research.dashboard.views import render_dashboard, render_empty_state
 from stock_research.excel_parser import WorkbookValidationError, parse_workbook
 from stock_research.preferences import load_preferences, remember_scan_folder, remember_workbook
-from stock_research.workbook_discovery import WorkbookCandidate, discover_workbooks
+from stock_research.workbook_discovery import WorkbookCandidate, discover_workbooks, find_workbook_for_ticker
 
 
 def _save_upload_to_temp(uploaded_file: Any) -> Path:
@@ -44,6 +44,11 @@ def _load_workbook_from_path(path: str):
 @st.cache_data(show_spinner=False)
 def _discover_workbooks(folder: str) -> tuple[WorkbookCandidate, ...]:
     return discover_workbooks(folder)
+
+
+@st.cache_data(show_spinner=False)
+def _find_workbook_for_ticker(folder: str, ticker: str) -> WorkbookCandidate | None:
+    return find_workbook_for_ticker(folder, ticker)
 
 
 def _parse_ticker_filter(value: str) -> set[str]:
@@ -134,10 +139,15 @@ def main() -> None:
                     if not ticker_parts:
                         st.warning("Enter a ticker first.")
                     else:
-                        candidates = _discover_workbooks(str(Path(scan_folder.strip()).expanduser()))
                         missing = []
+                        root_folder = str(Path(scan_folder.strip()).expanduser())
+                        fallback_candidates: tuple[WorkbookCandidate, ...] | None = None
                         for ticker in ticker_parts:
-                            candidate = _find_candidate_for_ticker(candidates, ticker)
+                            candidate = _find_workbook_for_ticker(root_folder, ticker)
+                            if candidate is None:
+                                if fallback_candidates is None:
+                                    fallback_candidates = _discover_workbooks(root_folder)
+                                candidate = _find_candidate_for_ticker(fallback_candidates, ticker)
                             if candidate:
                                 _add_opened_scan_candidate(candidate)
                             else:
