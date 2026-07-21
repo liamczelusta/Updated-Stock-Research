@@ -66,7 +66,7 @@ For private financial workbooks, the desktop/local version remains the safest op
 
 The Windows package can be built through GitHub Actions. See `docs/windows_desktop_build.md`.
 
-For large local research folders, use the sidebar's `Scan local folder` option. It remembers the last folder used, scans ticker subfolders, finds the likely Excel workbook in each folder, and ignores PDFs, Word documents, cache folders, and temporary Excel files. Use `Tickers to analyze` for focused comparisons such as `AAPL, MSFT, GS`.
+For large local research folders, use the sidebar's `Scan local folder` option. It remembers the last folder used and starts with no workbooks open. Add only the tickers you want, one at a time, such as `AAPL` or `GS`. The scanner ignores top-level folders beginning with `1 -` or `ZZZ`, skips old numbered matrix files such as `1 - ZP Quarterly Matrix...`, and prefers the workbook named `ZP Quarterly Matrix...` inside each ticker folder.
 
 ## AI Configuration
 
