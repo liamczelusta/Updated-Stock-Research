@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from typing import Protocol
+from urllib import error, request
 
 
 class AIProviderError(RuntimeError):
@@ -48,9 +50,6 @@ class ClaudeMessagesClient:
 
         compact_payload = _cap_payload(user_payload, max_chars=12000)
         try:
-            import anthropic
-
-            client = anthropic.Anthropic(api_key=self.settings.api_key)
             request_params = {
                 "model": self.settings.model,
                 "max_tokens": max(100, min(self.settings.max_tokens, 3000)),
@@ -60,12 +59,8 @@ class ClaudeMessagesClient:
             if _supports_temperature(self.settings.model):
                 request_params["temperature"] = self.settings.temperature
 
-            response = client.messages.create(**request_params)
-            text_blocks = [
-                block.text
-                for block in response.content
-                if getattr(block, "type", None) == "text" and getattr(block, "text", None)
-            ]
+            response_payload = self._create_message(request_params)
+            text_blocks = _text_blocks(response_payload)
             text = "\n".join(text_blocks).strip()
             if text:
                 return text
@@ -79,6 +74,51 @@ class ClaudeMessagesClient:
             if _is_limit_error(message):
                 raise AIProviderError("Claude rejected the request due to an account or rate limit. Try again in a minute.") from exc
             raise AIProviderError(f"Claude request failed: {exc}") from exc
+
+    def _create_message(self, request_params: dict) -> object:
+        """Create a Claude message using the SDK when present, else direct HTTPS."""
+
+        try:
+            import anthropic
+        except ModuleNotFoundError:
+            return _create_message_with_http(self.settings.api_key, request_params)
+
+        client = anthropic.Anthropic(api_key=self.settings.api_key)
+        return client.messages.create(**request_params)
+
+
+def _create_message_with_http(api_key: str, request_params: dict) -> dict:
+    data = json.dumps(request_params).encode("utf-8")
+    api_request = request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=data,
+        headers={
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+            "x-api-key": api_key,
+        },
+        method="POST",
+    )
+    try:
+        with request.urlopen(api_request, timeout=90) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {exc.code}: {details}") from exc
+
+
+def _text_blocks(response: object) -> list[str]:
+    if isinstance(response, dict):
+        return [
+            block.get("text", "")
+            for block in response.get("content", [])
+            if isinstance(block, dict) and block.get("type") == "text" and block.get("text")
+        ]
+    return [
+        block.text
+        for block in getattr(response, "content", [])
+        if getattr(block, "type", None) == "text" and getattr(block, "text", None)
+    ]
 
 
 def _cap_payload(payload: str, max_chars: int) -> str:
