@@ -68,7 +68,7 @@ The Windows package can be built through GitHub Actions. See `docs/windows_deskt
 
 For large local research folders, use the sidebar's `Library` option. It remembers the last folder used and starts with no workbooks open. Add only the tickers you want, one at a time, such as `AAPL` or `GS`. The scanner ignores top-level folders beginning with `1 -` or `ZZZ`, skips old numbered/mock matrix files, and prefers workbooks whose filenames start with `ZP`.
 
-The sidebar also includes `Find similar`, which scans available ticker folders and uses cached Yahoo Finance profile data to suggest comparable companies by theme, sector, industry, and profile text.
+The sidebar also includes `Find similar`. Build the profile index once, then the app searches the saved Yahoo Finance profile data across the whole local library to suggest comparable companies by theme, sector, industry, and profile text.
 
 ## AI Configuration
 
@@ -78,7 +78,7 @@ The app uses Claude for the AI assistant. In the desktop app, paste the key once
 ANTHROPIC_API_KEY = "..."
 ```
 
-The AI receives a compact evidence packet containing recent workbook data, deterministic scores, trends, risks, current market data, and recent company news. The app keeps the default response short to control API cost.
+The AI receives a compact evidence packet containing recent workbook data, deterministic scores, trends, risks, current market data, and recent company news. Optional Claude web search can be enabled in the sidebar for current context outside the workbook, Yahoo data, or news feed. The app keeps web search off by default to control API cost.
 
 Recommended model use:
 

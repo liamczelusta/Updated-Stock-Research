@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import json
+import os
 from pathlib import Path
 import re
+import sys
 from typing import Iterable
 
 from stock_research.workbook_discovery import TickerFolder, discover_ticker_folders
@@ -37,6 +41,12 @@ STOP_WORDS = {
     "the",
     "to",
 }
+APP_SUPPORT_DIR = (
+    Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming")) / "StockResearchDashboard"
+    if sys.platform.startswith("win")
+    else Path.home() / "Library" / "Application Support" / "StockResearchDashboard"
+)
+PROFILE_INDEX_PATH = APP_SUPPORT_DIR / "company_profile_index.json"
 
 
 @dataclass(frozen=True)
@@ -60,6 +70,16 @@ class SimilarCompany:
     industry: str | None
     score: float
     reason: str
+
+
+@dataclass(frozen=True)
+class CompanyProfileIndex:
+    """Cached Yahoo profile index for the local ticker-folder library."""
+
+    root: str
+    updated_at: str
+    profiles: tuple[CompanyProfile, ...]
+    missing_tickers: tuple[str, ...] = ()
 
 
 def available_library_tickers(root: str | Path) -> tuple[str, ...]:
@@ -123,6 +143,108 @@ def find_similar_companies(
         )
 
     return tuple(sorted(candidates, key=lambda item: (-item.score, item.ticker))[:max_results])
+
+
+def find_similar_companies_from_profiles(
+    profiles: Iterable[CompanyProfile],
+    active_tickers: Iterable[str],
+    theme: str,
+    max_results: int = 8,
+) -> tuple[SimilarCompany, ...]:
+    """Rank comparable companies from an existing local profile index."""
+
+    active = {ticker.strip().upper() for ticker in active_tickers if ticker.strip()}
+    theme_terms = _terms(theme)
+    profile_map = {profile.ticker.upper(): profile for profile in profiles}
+    if not profile_map or not theme_terms:
+        return ()
+
+    reference_terms = set(theme_terms)
+    reference_sectors = set()
+    reference_industries = set()
+    for ticker in active:
+        profile = profile_map.get(ticker)
+        if profile is None:
+            continue
+        reference_terms.update(_profile_terms(profile))
+        if profile.sector:
+            reference_sectors.add(profile.sector.lower())
+        if profile.industry:
+            reference_industries.add(profile.industry.lower())
+
+    candidates = []
+    for profile in profile_map.values():
+        if profile.ticker.upper() in active:
+            continue
+        score, reasons = _score_profile(profile, theme_terms, reference_terms, reference_sectors, reference_industries)
+        if score <= 0:
+            continue
+        candidates.append(
+            SimilarCompany(
+                ticker=profile.ticker,
+                name=profile.name,
+                sector=profile.sector,
+                industry=profile.industry,
+                score=round(score, 1),
+                reason="; ".join(reasons[:3]),
+            )
+        )
+    return tuple(sorted(candidates, key=lambda item: (-item.score, item.ticker))[:max_results])
+
+
+def build_company_profile_index(root: str | Path, profile_lookup) -> CompanyProfileIndex:
+    """Fetch Yahoo profiles for all valid ticker folders and save them locally."""
+
+    folders = discover_ticker_folders(root)
+    profiles = []
+    missing = []
+    for folder in folders:
+        profile = profile_lookup(folder.ticker)
+        if profile is None:
+            missing.append(folder.ticker)
+            continue
+        profiles.append(profile)
+
+    index = CompanyProfileIndex(
+        root=str(Path(root).expanduser()),
+        updated_at=datetime.now(timezone.utc).isoformat(),
+        profiles=tuple(sorted(profiles, key=lambda item: item.ticker)),
+        missing_tickers=tuple(missing),
+    )
+    save_company_profile_index(index)
+    return index
+
+
+def load_company_profile_index(root: str | Path) -> CompanyProfileIndex | None:
+    """Load the saved company profile index for a root folder, if available."""
+
+    try:
+        payload = json.loads(PROFILE_INDEX_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if payload.get("root") != str(Path(root).expanduser()):
+        return None
+    profiles = tuple(_profile_from_payload(item) for item in payload.get("profiles", []) if isinstance(item, dict))
+    missing = tuple(item for item in payload.get("missing_tickers", []) if isinstance(item, str))
+    return CompanyProfileIndex(
+        root=str(payload.get("root", "")),
+        updated_at=str(payload.get("updated_at", "")),
+        profiles=profiles,
+        missing_tickers=missing,
+    )
+
+
+def save_company_profile_index(index: CompanyProfileIndex) -> None:
+    """Persist the company profile index locally."""
+
+    APP_SUPPORT_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "root": index.root,
+        "updated_at": index.updated_at,
+        "profiles": [_profile_payload(profile) for profile in index.profiles],
+        "missing_tickers": list(index.missing_tickers),
+    }
+    PROFILE_INDEX_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def yahoo_company_profile(ticker: str) -> CompanyProfile | None:
@@ -198,3 +320,28 @@ def _first_text(payload: dict, *keys: str) -> str | None:
         if value is not None and str(value).strip():
             return str(value).strip()
     return None
+
+
+def _profile_payload(profile: CompanyProfile) -> dict[str, str | None]:
+    return {
+        "ticker": profile.ticker,
+        "name": profile.name,
+        "sector": profile.sector,
+        "industry": profile.industry,
+        "summary": profile.summary,
+    }
+
+
+def _profile_from_payload(payload: dict) -> CompanyProfile:
+    return CompanyProfile(
+        ticker=str(payload.get("ticker", "")).upper(),
+        name=_payload_text(payload, "name"),
+        sector=_payload_text(payload, "sector"),
+        industry=_payload_text(payload, "industry"),
+        summary=_payload_text(payload, "summary"),
+    )
+
+
+def _payload_text(payload: dict, key: str) -> str | None:
+    value = payload.get(key)
+    return str(value).strip() if value is not None and str(value).strip() else None

@@ -44,7 +44,11 @@ Folder rules:
 
 ## Similar Company Finder
 
-Use `Find similar` in the sidebar to enter a theme such as `steel`, `banks`, or `semiconductors`. The app scans the available ticker folders, checks lightweight Yahoo Finance profile fields, and suggests companies with matching sector, industry, or business-description terms. Results are cached to reduce repeated Yahoo requests.
+Use `Build / refresh profile index` once to save lightweight Yahoo Finance profile fields for the local ticker folders. Then use `Find similar` to enter a theme such as `steel`, `banks`, or `semiconductors`. The app searches the saved index across the whole library and suggests companies with matching sector, industry, or business-description terms.
+
+## Claude Web Search
+
+Claude web search is available as an optional sidebar toggle. Keep it off for ordinary workbook questions. Turn it on when asking about current context that is not covered by the workbook, Yahoo Finance data, or the news feed.
 
 ## Building With GitHub CLI
 

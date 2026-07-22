@@ -21,6 +21,8 @@ class AISettings:
     api_key: str
     max_tokens: int = 420
     temperature: float = 0.2
+    web_search_enabled: bool = False
+    web_search_max_uses: int = 3
 
 
 class AIClient(Protocol):
@@ -58,6 +60,14 @@ class ClaudeMessagesClient:
             }
             if _supports_temperature(self.settings.model):
                 request_params["temperature"] = self.settings.temperature
+            if self.settings.web_search_enabled:
+                request_params["tools"] = [
+                    {
+                        "type": "web_search_20250305",
+                        "name": "web_search",
+                        "max_uses": max(1, min(self.settings.web_search_max_uses, 5)),
+                    }
+                ]
 
             response_payload = self._create_message(request_params)
             text_blocks = _text_blocks(response_payload)

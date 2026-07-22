@@ -115,6 +115,14 @@ def render_dashboard(
         )
         model = AI_MODELS[model_label]
         max_tokens = st.slider("Response length", min_value=100, max_value=3000, value=1500, step=100)
+        web_search_enabled = st.toggle(
+            "Web search",
+            value=False,
+            help="Lets Claude search the web for current items not covered by the workbook, Yahoo, or news feed. This can add Anthropic search charges.",
+        )
+        web_search_max_uses = 3
+        if web_search_enabled:
+            web_search_max_uses = st.slider("Searches per answer", min_value=1, max_value=5, value=3)
         if api_key:
             st.caption("Claude connected")
         else:
@@ -173,6 +181,8 @@ def render_dashboard(
             model=model,
             api_key=api_key,
             max_tokens=max_tokens,
+            web_search_enabled=web_search_enabled,
+            web_search_max_uses=web_search_max_uses,
         )
 
     _apply_theme(str(app_theme or "Dark"))
@@ -755,7 +765,7 @@ def _render_ai_chat(
     comparison_workbooks: list[tuple[str, ParsedWorkbook, AnalysisResult]] | None = None,
 ) -> None:
     st.markdown(
-        '<div class="muted-panel">Ask questions about the workbook, deterministic scores, trends, risks, Yahoo Finance market data, and recent company news summaries. The assistant does not use external tools directly.</div>',
+        '<div class="muted-panel">Ask questions about the workbook, deterministic scores, trends, risks, Yahoo Finance market data, recent company news summaries, and optional web search when enabled.</div>',
         unsafe_allow_html=True,
     )
     chat_key = f"chat_messages_{parsed.company.ticker or parsed.company.title}"
