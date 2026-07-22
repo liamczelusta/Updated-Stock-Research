@@ -1062,7 +1062,7 @@ def _clean_ai_response(response: str) -> str:
             continue
         plain_line = _plain_prose_line(line)
         cleaned_lines.append(_repair_ai_spacing(_dedupe_repeated_phrase(plain_line)))
-    cleaned = "\n".join(cleaned_lines).strip()
+    cleaned = _normalize_ai_line_breaks("\n".join(cleaned_lines)).strip()
     return cleaned or response.strip()
 
 
@@ -1100,6 +1100,19 @@ def _repair_ai_spacing(text: str) -> str:
     repaired = re.sub(r"(?<=[a-z])(?=(the|and|but|which|with|while|because|analyst|market|forward|trailing)\b)", " ", repaired)
     repaired = re.sub(r"\s{2,}", " ", repaired)
     return repaired.strip()
+
+
+def _normalize_ai_line_breaks(text: str) -> str:
+    """Merge accidental single-line breaks while preserving real paragraphs."""
+
+    paragraphs = re.split(r"\n\s*\n", text)
+    normalized = []
+    for paragraph in paragraphs:
+        lines = [line.strip() for line in paragraph.splitlines() if line.strip()]
+        if not lines:
+            continue
+        normalized.append(" ".join(lines))
+    return "\n\n".join(normalized)
 
 
 def _safe_filename(value: str) -> str:
