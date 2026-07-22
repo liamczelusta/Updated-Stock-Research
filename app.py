@@ -18,14 +18,6 @@ from stock_research.config import APP_TITLE
 from stock_research.dashboard.views import render_dashboard, render_empty_state
 from stock_research.excel_parser import WorkbookValidationError, parse_workbook
 from stock_research.preferences import load_preferences, remember_scan_folder, remember_workbook
-from stock_research.similar_companies import (
-    CompanyProfile,
-    build_company_profile_index,
-    find_similar_companies,
-    find_similar_companies_from_profiles,
-    load_company_profile_index,
-    yahoo_company_profile,
-)
 from stock_research.workbook_discovery import WorkbookCandidate, discover_workbooks, find_workbook_for_ticker
 
 
@@ -57,22 +49,6 @@ def _discover_workbooks(folder: str) -> tuple[WorkbookCandidate, ...]:
 @st.cache_data(show_spinner=False)
 def _find_workbook_for_ticker(folder: str, ticker: str) -> WorkbookCandidate | None:
     return find_workbook_for_ticker(folder, ticker)
-
-
-@st.cache_data(show_spinner=False, ttl=60 * 60 * 24 * 7)
-def _company_profile(ticker: str) -> CompanyProfile | None:
-    return yahoo_company_profile(ticker)
-
-
-@st.cache_data(show_spinner=False)
-def _load_company_profile_index(folder: str):
-    return load_company_profile_index(folder)
-
-
-def _build_company_profile_index(folder: str):
-    index = build_company_profile_index(folder, _company_profile)
-    _load_company_profile_index.clear()
-    return index
 
 
 def _parse_ticker_filter(value: str) -> set[str]:
@@ -127,16 +103,6 @@ def _add_opened_scan_candidate(candidate: WorkbookCandidate) -> None:
             "ticker": candidate.ticker_hint,
         }
     )
-
-
-def _opened_scan_tickers() -> list[str]:
-    opened = st.session_state.setdefault("opened_scan_workbooks", [])
-    tickers = []
-    for item in opened:
-        if isinstance(item, dict) and isinstance(item.get("ticker"), str):
-            tickers.append(item["ticker"].upper())
-    return tickers
-
 
 def _add_tickers_from_folder(root_folder: str, tickers: set[str]) -> list[str]:
     missing = []
@@ -198,58 +164,6 @@ def main() -> None:
                 if st.button("Clear opened stocks"):
                     st.session_state["opened_scan_workbooks"] = []
                     st.rerun()
-
-            st.divider()
-            profile_index = None
-            root_folder_for_index = str(Path(scan_folder.strip()).expanduser()) if scan_folder.strip() else ""
-            if root_folder_for_index and Path(root_folder_for_index).is_dir():
-                profile_index = _load_company_profile_index(root_folder_for_index)
-            if profile_index:
-                st.caption(f"Profile index: {len(profile_index.profiles)} companies")
-            else:
-                st.caption("Profile index: not built")
-            if st.button("Build / refresh profile index", disabled=not bool(root_folder_for_index)):
-                if not Path(root_folder_for_index).is_dir():
-                    st.warning("Enter a valid root folder first.")
-                else:
-                    with st.spinner("Building company profile index from Yahoo"):
-                        profile_index = _build_company_profile_index(root_folder_for_index)
-                    st.success(f"Indexed {len(profile_index.profiles)} companies.")
-
-            similar_theme = st.text_input("Find similar", value="", placeholder="steel, banks, semiconductors")
-            if st.button("Suggest similar companies", disabled=not bool(scan_folder.strip()) or not bool(similar_theme.strip())):
-                root_folder = str(Path(scan_folder.strip()).expanduser())
-                if not Path(root_folder).is_dir():
-                    st.warning("Enter a valid root folder first.")
-                else:
-                    profile_index = _load_company_profile_index(root_folder)
-                    if profile_index:
-                        st.session_state["similar_company_results"] = find_similar_companies_from_profiles(
-                            profile_index.profiles,
-                            _opened_scan_tickers(),
-                            similar_theme,
-                        )
-                    else:
-                        with st.spinner("Checking Yahoo profiles"):
-                            st.session_state["similar_company_results"] = find_similar_companies(
-                                root_folder,
-                                _opened_scan_tickers(),
-                                similar_theme,
-                                _company_profile,
-                            )
-            similar_results = st.session_state.get("similar_company_results", ())
-            if similar_results:
-                st.caption("Suggestions")
-                for item in similar_results:
-                    cols = st.columns([0.38, 0.62])
-                    with cols[0]:
-                        if st.button(f"+ {item.ticker}", key=f"add_similar_{item.ticker}"):
-                            root_folder = str(Path(scan_folder.strip()).expanduser())
-                            _add_tickers_from_folder(root_folder, {item.ticker})
-                            st.rerun()
-                    with cols[1]:
-                        st.caption(f"{item.name or item.ticker} - {item.industry or item.sector or 'profile match'}")
-                        st.caption(item.reason)
 
         with st.expander("Manual open"):
             uploaded_files = st.file_uploader("Excel workbook", type=("xlsx", "xlsm"), accept_multiple_files=True)

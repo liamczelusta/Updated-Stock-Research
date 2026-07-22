@@ -54,7 +54,7 @@ class ClaudeMessagesClient:
         try:
             request_params = {
                 "model": self.settings.model,
-                "max_tokens": max(100, min(self.settings.max_tokens, 3000)),
+                "max_tokens": max(100, min(self.settings.max_tokens, 6000)),
                 "system": system_prompt,
                 "messages": [{"role": "user", "content": compact_payload}],
             }
@@ -68,8 +68,10 @@ class ClaudeMessagesClient:
                         "max_uses": max(1, min(self.settings.web_search_max_uses, 5)),
                     }
                 ]
+                request_params["tool_choice"] = {"type": "tool", "name": "web_search"}
 
             response_payload = self._create_message(request_params)
+            response_payload = self._continue_pause_turn_if_needed(request_params, response_payload)
             text_blocks = _text_blocks(response_payload)
             text = "\n".join(text_blocks).strip()
             if text:
@@ -95,6 +97,22 @@ class ClaudeMessagesClient:
 
         client = anthropic.Anthropic(api_key=self.settings.api_key)
         return client.messages.create(**request_params)
+
+    def _continue_pause_turn_if_needed(self, request_params: dict, response_payload: object) -> object:
+        """Continue Anthropic server-tool turns that pause while web search runs."""
+
+        if _stop_reason(response_payload) != "pause_turn":
+            return response_payload
+        messages = [
+            *request_params["messages"],
+            {"role": "assistant", "content": _response_content(response_payload)},
+        ]
+        continuation_params = {
+            **request_params,
+            "messages": messages,
+        }
+        continuation_params.pop("tool_choice", None)
+        return self._create_message(continuation_params)
 
 
 def _create_message_with_http(api_key: str, request_params: dict) -> dict:
@@ -129,6 +147,20 @@ def _text_blocks(response: object) -> list[str]:
         for block in getattr(response, "content", [])
         if getattr(block, "type", None) == "text" and getattr(block, "text", None)
     ]
+
+
+def _stop_reason(response: object) -> str | None:
+    if isinstance(response, dict):
+        reason = response.get("stop_reason")
+        return str(reason) if reason else None
+    reason = getattr(response, "stop_reason", None)
+    return str(reason) if reason else None
+
+
+def _response_content(response: object):
+    if isinstance(response, dict):
+        return response.get("content", [])
+    return getattr(response, "content", [])
 
 
 def _cap_payload(payload: str, max_chars: int) -> str:

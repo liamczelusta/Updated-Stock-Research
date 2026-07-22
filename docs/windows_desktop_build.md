@@ -42,10 +42,6 @@ Folder rules:
 - Old numbered files such as `1 - ZP Quarterly Matrix...` are ignored.
 - The preferred workbook is the file beginning with `ZP`.
 
-## Similar Company Finder
-
-Use `Build / refresh profile index` once to save lightweight Yahoo Finance profile fields for the local ticker folders. Then use `Find similar` to enter a theme such as `steel`, `banks`, or `semiconductors`. The app searches the saved index across the whole library and suggests companies with matching sector, industry, or business-description terms.
-
 ## Claude Web Search
 
 Claude web search is available as an optional sidebar toggle. Keep it off for ordinary workbook questions. Turn it on when asking about current context that is not covered by the workbook, Yahoo Finance data, or the news feed.

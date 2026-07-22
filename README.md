@@ -68,8 +68,6 @@ The Windows package can be built through GitHub Actions. See `docs/windows_deskt
 
 For large local research folders, use the sidebar's `Library` option. It remembers the last folder used and starts with no workbooks open. Add only the tickers you want, one at a time, such as `AAPL` or `GS`. The scanner ignores top-level folders beginning with `1 -` or `ZZZ`, skips old numbered/mock matrix files, and prefers workbooks whose filenames start with `ZP`.
 
-The sidebar also includes `Find similar`. Build the profile index once, then the app searches the saved Yahoo Finance profile data across the whole local library to suggest comparable companies by theme, sector, industry, and profile text.
-
 ## AI Configuration
 
 The app uses Claude for the AI assistant. In the desktop app, paste the key once in `Advanced` and choose `Save Claude key on this computer`. For Streamlit Cloud, store the key in app secrets. The sidebar lets you choose Haiku, Sonnet, Opus, or Fable depending on whether you want lower cost or stronger analysis.

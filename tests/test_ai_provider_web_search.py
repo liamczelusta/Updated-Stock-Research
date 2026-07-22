@@ -22,3 +22,4 @@ def test_claude_client_adds_web_search_tool_when_enabled() -> None:
 
     assert client.complete("system", "payload") == "ok"
     assert captured["tools"] == [{"type": "web_search_20250305", "name": "web_search", "max_uses": 2}]
+    assert captured["tool_choice"] == {"type": "tool", "name": "web_search"}

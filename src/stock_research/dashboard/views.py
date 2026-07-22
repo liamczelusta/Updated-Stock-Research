@@ -21,7 +21,7 @@ from stock_research.ai.providers import AIProviderError, AISettings, create_ai_c
 from stock_research.dataclasses import AnalysisResult, ParsedWorkbook, QuarterAnalysis, QuarterRecord, is_estimate_quarter_label, is_historical_quarter
 from stock_research.local_secrets import delete_local_secret, load_local_secret, save_local_secret
 from stock_research.market_data import MarketDataError, MarketDataSnapshot, YahooFinanceProvider
-from stock_research.preferences import AppPreferences
+from stock_research.preferences import AppPreferences, load_preferences, remember_dashboard_preferences
 from stock_research.reporting import (
     ExecutiveSummary,
     build_complete_report_text,
@@ -51,6 +51,14 @@ AI_MODELS = {
     "Fable - deepest analysis": "claude-fable-5",
 }
 DEFAULT_AI_MODEL_LABEL = "Haiku - fastest / cheapest"
+AI_RESPONSE_MAX_TOKENS = 4000
+
+
+def _model_index(label: str | None) -> int:
+    labels = list(AI_MODELS)
+    if label in AI_MODELS:
+        return labels.index(label)
+    return labels.index(DEFAULT_AI_MODEL_LABEL)
 
 
 def render_empty_state(preferences: AppPreferences | None = None, error: str | None = None) -> None:
@@ -97,6 +105,7 @@ def render_dashboard(
         usable_df = quarters_df.copy()
 
     with st.sidebar:
+        preferences = load_preferences()
         provider = AI_PROVIDER
         saved_api_key = load_local_secret(AI_KEY_ENV_NAME)
         api_key = _api_key_for(AI_KEY_ENV_NAME) or saved_api_key
@@ -110,20 +119,24 @@ def render_dashboard(
         model_label = st.selectbox(
             "Model",
             list(AI_MODELS),
-            index=list(AI_MODELS).index(DEFAULT_AI_MODEL_LABEL),
+            index=_model_index(preferences.ai_model_label),
             help="Use Haiku for routine work, Sonnet for stronger judgment, Opus or Fable only for deeper reviews.",
         )
         model = AI_MODELS[model_label]
-        max_tokens = st.slider("Response length", min_value=100, max_value=3000, value=1500, step=100)
         web_search_enabled = st.toggle(
             "Claude web search",
-            value=False,
+            value=preferences.claude_web_search,
             help="Lets Claude search the web for current items not covered by the workbook, Yahoo, or news feed. This can add Anthropic search charges.",
         )
         st.caption("Optional live internet context. Off by default.")
-        web_search_max_uses = 3
+        web_search_max_uses = preferences.claude_web_search_max_uses
         if web_search_enabled:
-            web_search_max_uses = st.slider("Claude web searches per answer", min_value=1, max_value=5, value=3)
+            web_search_max_uses = st.slider(
+                "Claude web searches per answer",
+                min_value=1,
+                max_value=5,
+                value=preferences.claude_web_search_max_uses,
+            )
         if api_key:
             st.caption("Claude connected")
         else:
@@ -131,15 +144,37 @@ def render_dashboard(
 
         st.divider()
         st.subheader("Market data")
-        fetch_market_data = st.toggle("Yahoo Finance", value=True)
-        market_period = st.selectbox("Price history", ["6mo", "1y", "2y", "5y"], index=1, disabled=not fetch_market_data)
+        fetch_market_data = st.toggle("Yahoo Finance", value=preferences.yahoo_finance)
+        market_period_options = ["6mo", "1y", "2y", "5y"]
+        market_period = st.selectbox(
+            "Price history",
+            market_period_options,
+            index=market_period_options.index(preferences.market_period)
+            if preferences.market_period in market_period_options
+            else 1,
+            disabled=not fetch_market_data,
+        )
 
         with st.expander("Advanced"):
-            app_theme = st.radio("Display", ["Dark", "Light"], index=0, horizontal=True)
+            app_theme = st.radio(
+                "Display",
+                ["Dark", "Light"],
+                index=0 if preferences.display_theme == "Dark" else 1,
+                horizontal=True,
+            )
             max_quarters = max(4, min(len(usable_df), 80))
             default_quarters = min(16, max_quarters)
-            quarter_count = st.slider("Quarters shown", min_value=4, max_value=max_quarters, value=default_quarters)
-            show_forecast_extension = st.toggle("Show forecast extension", value=True)
+            preferred_quarters = preferences.quarters_shown or default_quarters
+            quarter_count = st.slider(
+                "Quarters shown",
+                min_value=4,
+                max_value=max_quarters,
+                value=max(4, min(max_quarters, preferred_quarters)),
+            )
+            show_forecast_extension = st.toggle(
+                "Show forecast extension",
+                value=preferences.show_forecast_extension,
+            )
             api_key_input = st.text_input("Claude API key", type="password", value="")
             if st.button("Save Claude key on this computer", disabled=not bool(api_key_input.strip())):
                 save_local_secret(AI_KEY_ENV_NAME, api_key_input)
@@ -158,6 +193,17 @@ def render_dashboard(
             show_forecast_extension = True
             fetch_market_data = True
             market_period = "1y"
+
+        remember_dashboard_preferences(
+            ai_model_label=model_label,
+            claude_web_search=web_search_enabled,
+            claude_web_search_max_uses=web_search_max_uses,
+            yahoo_finance=fetch_market_data,
+            market_period=market_period,
+            display_theme=str(app_theme or "Dark"),
+            quarters_shown=quarter_count,
+            show_forecast_extension=show_forecast_extension,
+        )
 
         st.divider()
         if fetch_market_data:
@@ -181,7 +227,7 @@ def render_dashboard(
             provider=provider.lower(),
             model=model,
             api_key=api_key,
-            max_tokens=max_tokens,
+            max_tokens=AI_RESPONSE_MAX_TOKENS,
             web_search_enabled=web_search_enabled,
             web_search_max_uses=web_search_max_uses,
         )
@@ -395,7 +441,7 @@ def _render_ai_summary(
     st.markdown('<div class="section-title">AI analyst memo</div>', unsafe_allow_html=True)
     summary_key = (
         f"ai_summary_{parsed.company.workbook_path}_"
-        f"{analysis.scores.overall_investment}_{ai_settings.model}_{ai_settings.max_tokens}"
+        f"{analysis.scores.overall_investment}_{ai_settings.model}_{ai_settings.web_search_enabled}"
     )
     button_label = "Regenerate AI Memo" if summary_key in st.session_state else "Generate AI Memo"
     generate_memo = st.button(button_label, type="primary", disabled=not bool(ai_settings.api_key))
@@ -420,10 +466,7 @@ def _render_ai_summary(
                 payload = build_user_payload(
                     context,
                     [],
-                    _with_length_instruction(
-                        "Write a concise executive analyst memo. Start with one direct sentence stating our overall view in plain English. Then give 4-5 bullets covering the key drivers, risks, market context, and what to watch next. Do not use percentage confidence labels or Positive/Neutral/Negative rating labels. Use only the evidence packet.",
-                        ai_settings.max_tokens,
-                    ),
+                    "Write an executive analyst memo. Start with one direct sentence stating our overall view in plain English. Then cover the key drivers, risks, market context, and what to watch next. Do not use percentage confidence labels or Positive/Neutral/Negative rating labels. Use the evidence packet, and if Claude web search is enabled, search for current outside context when it would materially improve the answer.",
                 )
                 client = create_ai_client(ai_settings)
                 st.session_state[summary_key] = _clean_ai_response(
@@ -801,7 +844,7 @@ def _render_ai_chat(
                 payload = build_user_payload(
                     context,
                     st.session_state[chat_key][:-1],
-                    _with_length_instruction(question, ai_settings.max_tokens),
+                    question,
                 )
                 client = create_ai_client(ai_settings)
                 response = _clean_ai_response(client.complete(build_system_prompt(), payload))
@@ -1033,15 +1076,6 @@ def _render_plain_ai_text(text: str) -> None:
     st.markdown(
         f'<div class="plain-ai-text">{escape(text).replace(chr(10), "<br>")}</div>',
         unsafe_allow_html=True,
-    )
-
-
-def _with_length_instruction(question: str, max_tokens: int) -> str:
-    word_budget = max(40, int(max_tokens * 0.55))
-    return (
-        f"{question}\n\n"
-        f"Length limit: keep the answer under about {word_budget} words. "
-        "If the limit is tight, prioritize the direct conclusion and the most important evidence."
     )
 
 
