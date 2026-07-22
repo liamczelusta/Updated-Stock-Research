@@ -116,13 +116,14 @@ def render_dashboard(
         model = AI_MODELS[model_label]
         max_tokens = st.slider("Response length", min_value=100, max_value=3000, value=1500, step=100)
         web_search_enabled = st.toggle(
-            "Web search",
+            "Claude web search",
             value=False,
             help="Lets Claude search the web for current items not covered by the workbook, Yahoo, or news feed. This can add Anthropic search charges.",
         )
+        st.caption("Optional live internet context. Off by default.")
         web_search_max_uses = 3
         if web_search_enabled:
-            web_search_max_uses = st.slider("Searches per answer", min_value=1, max_value=5, value=3)
+            web_search_max_uses = st.slider("Claude web searches per answer", min_value=1, max_value=5, value=3)
         if api_key:
             st.caption("Claude connected")
         else:
