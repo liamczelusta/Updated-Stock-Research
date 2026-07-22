@@ -18,6 +18,7 @@ from stock_research.config import APP_TITLE
 from stock_research.dashboard.views import render_dashboard, render_empty_state
 from stock_research.excel_parser import WorkbookValidationError, parse_workbook
 from stock_research.preferences import load_preferences, remember_scan_folder, remember_workbook
+from stock_research.similar_companies import CompanyProfile, find_similar_companies, yahoo_company_profile
 from stock_research.workbook_discovery import WorkbookCandidate, discover_workbooks, find_workbook_for_ticker
 
 
@@ -49,6 +50,11 @@ def _discover_workbooks(folder: str) -> tuple[WorkbookCandidate, ...]:
 @st.cache_data(show_spinner=False)
 def _find_workbook_for_ticker(folder: str, ticker: str) -> WorkbookCandidate | None:
     return find_workbook_for_ticker(folder, ticker)
+
+
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 24 * 7)
+def _company_profile(ticker: str) -> CompanyProfile | None:
+    return yahoo_company_profile(ticker)
 
 
 def _parse_ticker_filter(value: str) -> set[str]:
@@ -105,6 +111,31 @@ def _add_opened_scan_candidate(candidate: WorkbookCandidate) -> None:
     )
 
 
+def _opened_scan_tickers() -> list[str]:
+    opened = st.session_state.setdefault("opened_scan_workbooks", [])
+    tickers = []
+    for item in opened:
+        if isinstance(item, dict) and isinstance(item.get("ticker"), str):
+            tickers.append(item["ticker"].upper())
+    return tickers
+
+
+def _add_tickers_from_folder(root_folder: str, tickers: set[str]) -> list[str]:
+    missing = []
+    fallback_candidates: tuple[WorkbookCandidate, ...] | None = None
+    for ticker in sorted(tickers):
+        candidate = _find_workbook_for_ticker(root_folder, ticker)
+        if candidate is None:
+            if fallback_candidates is None:
+                fallback_candidates = _discover_workbooks(root_folder)
+            candidate = _find_candidate_for_ticker(fallback_candidates, ticker)
+        if candidate:
+            _add_opened_scan_candidate(candidate)
+        else:
+            missing.append(ticker)
+    return missing
+
+
 def main() -> None:
     """Render the Streamlit stock research dashboard."""
     st.set_page_config(page_title=APP_TITLE, layout="wide")
@@ -113,18 +144,11 @@ def main() -> None:
     with st.sidebar:
         st.title("Stock Research")
         st.caption("Open only the workbooks you want to analyze.")
-        uploaded_files = st.file_uploader("Excel workbook", type=("xlsx", "xlsm"), accept_multiple_files=True)
+        uploaded_files = []
         recent_choice = ""
-        if preferences.recent_files:
-            recent_choice = st.selectbox(
-                "Recent files",
-                [""] + list(preferences.recent_files),
-                format_func=lambda value: "Choose recent workbook" if not value else Path(value).name,
-            )
-        with st.expander("Open by path"):
-            default_folder = preferences.last_folder or ""
-            workbook_path = st.text_input("Workbook path", value=default_folder)
-        with st.expander("Scan local folder"):
+        workbook_path = ""
+
+        with st.expander("Library", expanded=True):
             scan_default = preferences.last_scan_folder or preferences.last_folder or ""
             scan_folder = st.text_input("Root folder", value=scan_default)
             with st.form("add_ticker_form", clear_on_submit=True):
@@ -139,19 +163,8 @@ def main() -> None:
                     if not ticker_parts:
                         st.warning("Enter a ticker first.")
                     else:
-                        missing = []
                         root_folder = str(Path(scan_folder.strip()).expanduser())
-                        fallback_candidates: tuple[WorkbookCandidate, ...] | None = None
-                        for ticker in ticker_parts:
-                            candidate = _find_workbook_for_ticker(root_folder, ticker)
-                            if candidate is None:
-                                if fallback_candidates is None:
-                                    fallback_candidates = _discover_workbooks(root_folder)
-                                candidate = _find_candidate_for_ticker(fallback_candidates, ticker)
-                            if candidate:
-                                _add_opened_scan_candidate(candidate)
-                            else:
-                                missing.append(ticker)
+                        missing = _add_tickers_from_folder(root_folder, ticker_parts)
                         if missing:
                             st.warning(f"Could not find: {', '.join(missing)}")
                         else:
@@ -167,6 +180,45 @@ def main() -> None:
                 if st.button("Clear opened stocks"):
                     st.session_state["opened_scan_workbooks"] = []
                     st.rerun()
+
+            st.divider()
+            similar_theme = st.text_input("Find similar", value="", placeholder="steel, banks, semiconductors")
+            if st.button("Suggest similar companies", disabled=not bool(scan_folder.strip()) or not bool(similar_theme.strip())):
+                root_folder = str(Path(scan_folder.strip()).expanduser())
+                if not Path(root_folder).is_dir():
+                    st.warning("Enter a valid root folder first.")
+                else:
+                    with st.spinner("Checking Yahoo profiles"):
+                        st.session_state["similar_company_results"] = find_similar_companies(
+                            root_folder,
+                            _opened_scan_tickers(),
+                            similar_theme,
+                            _company_profile,
+                        )
+            similar_results = st.session_state.get("similar_company_results", ())
+            if similar_results:
+                st.caption("Suggestions")
+                for item in similar_results:
+                    cols = st.columns([0.38, 0.62])
+                    with cols[0]:
+                        if st.button(f"+ {item.ticker}", key=f"add_similar_{item.ticker}"):
+                            root_folder = str(Path(scan_folder.strip()).expanduser())
+                            _add_tickers_from_folder(root_folder, {item.ticker})
+                            st.rerun()
+                    with cols[1]:
+                        st.caption(f"{item.name or item.ticker} - {item.industry or item.sector or 'profile match'}")
+                        st.caption(item.reason)
+
+        with st.expander("Manual open"):
+            uploaded_files = st.file_uploader("Excel workbook", type=("xlsx", "xlsm"), accept_multiple_files=True)
+            if preferences.recent_files:
+                recent_choice = st.selectbox(
+                    "Recent files",
+                    [""] + list(preferences.recent_files),
+                    format_func=lambda value: "Choose recent workbook" if not value else Path(value).name,
+                )
+            default_folder = preferences.last_folder or ""
+            workbook_path = st.text_input("Workbook path", value=default_folder)
 
     selected_path: Path | None = None
     remember_selected_path = False

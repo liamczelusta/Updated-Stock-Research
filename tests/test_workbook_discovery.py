@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from stock_research.workbook_discovery import discover_workbooks, find_workbook_for_ticker
+from stock_research.workbook_discovery import discover_ticker_folders, discover_workbooks, find_workbook_for_ticker
 
 
 def test_discover_workbooks_chooses_one_excel_file_per_ticker_folder(tmp_path: Path) -> None:
@@ -117,3 +117,14 @@ def test_find_workbook_for_ticker_prefers_any_file_that_starts_with_zp(tmp_path:
 
     assert candidate is not None
     assert candidate.path == preferred
+
+
+def test_discover_ticker_folders_ignores_archive_prefixes(tmp_path: Path) -> None:
+    (tmp_path / "1 - Old").mkdir()
+    (tmp_path / "ZZZ Archive").mkdir()
+    (tmp_path / "AAPL Apple Inc").mkdir()
+    (tmp_path / "WMT").mkdir()
+
+    folders = discover_ticker_folders(tmp_path)
+
+    assert [folder.ticker for folder in folders] == ["AAPL", "WMT"]

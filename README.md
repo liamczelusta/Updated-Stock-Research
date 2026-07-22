@@ -66,7 +66,9 @@ For private financial workbooks, the desktop/local version remains the safest op
 
 The Windows package can be built through GitHub Actions. See `docs/windows_desktop_build.md`.
 
-For large local research folders, use the sidebar's `Scan local folder` option. It remembers the last folder used and starts with no workbooks open. Add only the tickers you want, one at a time, such as `AAPL` or `GS`. The scanner ignores top-level folders beginning with `1 -` or `ZZZ`, skips old numbered matrix files such as `1 - ZP Quarterly Matrix...`, and prefers the workbook named `ZP Quarterly Matrix...` inside each ticker folder.
+For large local research folders, use the sidebar's `Library` option. It remembers the last folder used and starts with no workbooks open. Add only the tickers you want, one at a time, such as `AAPL` or `GS`. The scanner ignores top-level folders beginning with `1 -` or `ZZZ`, skips old numbered/mock matrix files, and prefers workbooks whose filenames start with `ZP`.
+
+The sidebar also includes `Find similar`, which scans available ticker folders and uses cached Yahoo Finance profile data to suggest comparable companies by theme, sector, industry, and profile text.
 
 ## AI Configuration
 

@@ -8,7 +8,7 @@ This project can be built into a Windows desktop-style package through GitHub Ac
 2. Unzip it.
 3. Double-click `Open Stock Research Dashboard.bat`.
 4. The app opens in the browser at a local address.
-5. Use `Scan local folder` in the sidebar to point at the large stock-folder library. The app remembers that folder for next time.
+5. Use `Library` in the sidebar to point at the large stock-folder library. The app remembers that folder for next time.
 6. Type a ticker, such as `AAPL`, and click `+ Add stock`.
 7. Repeat step 6 for each company you want open.
 8. Paste the Claude key once in `Advanced` and click `Save Claude key on this computer`.
@@ -40,7 +40,11 @@ Folder rules:
 - Top-level folders beginning with `ZZZ` are ignored.
 - Other top-level folders should begin with a ticker, such as `AAPL`.
 - Old numbered files such as `1 - ZP Quarterly Matrix...` are ignored.
-- The preferred workbook is the file beginning with `ZP Quarterly Matrix...`.
+- The preferred workbook is the file beginning with `ZP`.
+
+## Similar Company Finder
+
+Use `Find similar` in the sidebar to enter a theme such as `steel`, `banks`, or `semiconductors`. The app scans the available ticker folders, checks lightweight Yahoo Finance profile fields, and suggests companies with matching sector, industry, or business-description terms. Results are cached to reduce repeated Yahoo requests.
 
 ## Building With GitHub CLI
 

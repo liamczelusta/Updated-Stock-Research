@@ -35,6 +35,15 @@ class WorkbookCandidate:
     display_name: str
 
 
+@dataclass(frozen=True)
+class TickerFolder:
+    """One top-level ticker folder in the local research library."""
+
+    ticker: str
+    path: Path
+    display_name: str
+
+
 def discover_workbooks(root: str | Path, max_files: int = 500) -> tuple[WorkbookCandidate, ...]:
     """Return likely Excel workbooks from ticker folders, one best file per folder."""
 
@@ -87,6 +96,27 @@ def find_workbook_for_ticker(root: str | Path, ticker: str) -> WorkbookCandidate
         ticker_hint=clean_ticker,
         display_name=f"{clean_ticker} - {best.name}",
     )
+
+
+def discover_ticker_folders(root: str | Path) -> tuple[TickerFolder, ...]:
+    """Return valid top-level ticker folders from the local research library."""
+
+    root_path = Path(root).expanduser()
+    if not root_path.exists() or not root_path.is_dir():
+        return ()
+
+    folders = []
+    for child in root_path.iterdir():
+        if not child.is_dir():
+            continue
+        name = child.name.strip()
+        if name.upper().startswith(IGNORED_TOP_LEVEL_PREFIXES):
+            continue
+        ticker = _clean_ticker(name)
+        if not ticker:
+            continue
+        folders.append(TickerFolder(ticker=ticker, path=child, display_name=name))
+    return tuple(sorted(folders, key=lambda item: item.ticker))
 
 
 def _iter_excel_files(root: Path):
